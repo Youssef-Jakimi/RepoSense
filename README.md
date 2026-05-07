@@ -7,6 +7,12 @@ Built for the **IBM Bob Hackathon** (May 15–17, 2026) on [lablab.ai](https://l
 
 ---
 
+## How it works
+
+Paste a GitHub URL → RepoSense fetches every source file via the GitHub API, splits code into semantic chunks, embeds them into a local ChromaDB vector store, then runs two parallel pipelines: a **Q&A engine** (RAG + IBM Bob) for conversational codebase exploration, and a **risk review engine** (static analysis + IBM Bob enrichment) that produces an immediate 0–100 Risk Score. Everything is served through a FastAPI backend and rendered in a Streamlit UI. See [ARCHITECTURE.md](ARCHITECTURE.md) for the full component diagram.
+
+---
+
 ## What It Does
 
 Drop a GitHub repo URL and RepoSense gives you two superpowers:
@@ -24,6 +30,8 @@ Drop a GitHub repo URL and RepoSense gives you two superpowers:
 - Highlights security smells and anti-patterns
 - Outputs a clean, structured risk report
 
+> **Wow factor:** Immediately after ingestion, a **Risk Score (0–100)** appears — computed across test coverage, code complexity, and security. It's the first thing the user sees.
+
 ---
 
 ## Tech Stack
@@ -32,10 +40,47 @@ Drop a GitHub repo URL and RepoSense gives you two superpowers:
 |---|---|
 | AI Partner | IBM Bob |
 | Backend | Python (FastAPI) |
-| RAG Pipeline | LangChain / LlamaIndex |
+| RAG Pipeline | LangChain |
 | GitHub Integration | GitHub REST API (PyGithub) |
-| Vector Store | ChromaDB / FAISS |
-| Frontend | React |
+| Vector Store | ChromaDB |
+| Embeddings | sentence-transformers/all-MiniLM-L6-v2 |
+| Frontend | Streamlit |
+
+---
+
+## Quickstart (local)
+
+1. **Prerequisites**
+   - Python 3.10+
+   - A GitHub Personal Access Token (only needed for private repos or to raise the rate limit)
+   - IBM Bob API key (provided May 15 at hackathon kickoff — until then the Q&A will return a graceful "Bob not connected" message)
+
+2. **Install**
+   ```bash
+   git clone <this-repo>
+   cd reposense
+   python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
+   pip install -r requirements.txt
+   cp .env.example .env
+   # Fill in GITHUB_TOKEN (optional) and IBM_BOB_API_KEY / IBM_BOB_BASE_URL
+   ```
+
+3. **Verify with smoke scripts**
+   ```bash
+   python scripts/smoke_ingest.py   # Confirms ingestion + embedding works
+   python scripts/smoke_review.py   # Confirms risk review + Markdown report
+   ```
+
+4. **Run**
+   ```bash
+   # Terminal 1 — backend
+   uvicorn api.main:app --reload
+
+   # Terminal 2 — UI
+   streamlit run ui/app.py
+   ```
+
+5. **Use it.** Open http://localhost:8501, paste a GitHub URL, click **Ingest**. Wait ~15–30 seconds for the Risk Score.
 
 ---
 
@@ -45,61 +90,38 @@ Drop a GitHub repo URL and RepoSense gives you two superpowers:
 reposense/
 ├── README.md
 ├── ARCHITECTURE.md
+├── OPUS_BRIEFING.md
+├── SONNET_PROMPTS.md
 ├── requirements.txt
 ├── .env.example
 │
 ├── ingestion/
 │   ├── github_loader.py       # Fetch repo files via GitHub API
-│   ├── chunker.py             # Split code into meaningful chunks
-│   └── embedder.py            # Embed chunks into vector store
+│   ├── chunker.py             # Split code into semantic chunks
+│   └── embedder.py            # Embed chunks into ChromaDB
 │
 ├── intelligence/
-│   ├── qa_engine.py           # Q&A over codebase using IBM Bob + RAG
-│   └── context_builder.py     # Build repo context for Bob
+│   ├── context_builder.py     # Build repo summary for Bob
+│   └── qa_engine.py           # RAG Q&A pipeline with IBM Bob
 │
 ├── review/
-│   ├── risk_analyzer.py       # Detect untested code, breaking points
-│   ├── security_scanner.py    # Flag security smells
-│   └── report_generator.py    # Format structured risk report
+│   ├── risk_analyzer.py       # Untested functions + breaking points
+│   ├── security_scanner.py    # Security smells via IBM Bob
+│   └── report_generator.py    # Risk score + Markdown report
 │
 ├── api/
-│   ├── main.py                # FastAPI entry point
-│   ├── routes/
-│   │   ├── ingest.py          # POST /ingest
-│   │   ├── qa.py              # POST /ask
-│   │   └── review.py          # GET /review
+│   ├── main.py                # FastAPI app
+│   └── routes/
+│       ├── ingest.py          # POST /ingest
+│       ├── qa.py              # POST /ask
+│       └── review.py          # GET /review
 │
-└── ui/
-    └── app.py                 # Streamlit UI
-```
-
----
-
-## Getting Started
-
-### Prerequisites
-- Python 3.10+
-- GitHub Personal Access Token
-- IBM Bob API access (provided at hackathon kickoff)
-
-### Installation
-
-```bash
-git clone https://github.com/yourusername/reposense.git
-cd reposense
-pip install -r requirements.txt
-cp .env.example .env
-# Fill in your API keys in .env
-```
-
-### Run
-
-```bash
-# Start the backend
-uvicorn api.main:app --reload
-
-# Start the UI
-streamlit run ui/app.py
+├── ui/
+│   └── app.py                 # Streamlit UI
+│
+└── demo/
+    ├── DEMO_SCRIPT.md
+    └── demo_repos.md
 ```
 
 ---
@@ -109,8 +131,9 @@ streamlit run ui/app.py
 | Method | Endpoint | Description |
 |---|---|---|
 | POST | `/ingest` | Ingest a GitHub repo by URL |
+| GET | `/status` | Poll ingestion/review status |
 | POST | `/ask` | Ask a question about the ingested repo |
-| GET | `/review` | Get the full risk review report |
+| GET | `/review` | Get the full risk review report (JSON or Markdown) |
 
 ---
 
@@ -142,5 +165,5 @@ streamlit run ui/app.py
 
 ## Author
 
-Built solo by [Your Name] — Software & AI Engineering Student  
+Built solo by Youssef Jakimi — Software & AI Engineering Student  
 IBM Bob Hackathon 2026

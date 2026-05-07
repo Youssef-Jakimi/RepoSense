@@ -112,15 +112,11 @@ Grounded Answer
 - Checks for corresponding test files/functions
 - Flags functions with no test coverage
 - Detects high-dependency functions (breaking point risk)
-- Uses IBM Bob to reason about logic complexity and interdependencies
+- Uses Python `ast` for accurate detection on `.py` files; uses regex fallback (labeled "best-effort") for other languages
 
 **`review/security_scanner.py`**
-- Prompts IBM Bob to detect common security smells:
-  - Hardcoded secrets/credentials
-  - SQL injection risks
-  - Unvalidated inputs
-  - Insecure dependencies
-  - Exposed sensitive routes
+- Hybrid approach: regex pre-pass (always runs) + IBM Bob enrichment (skipped if Bob unavailable)
+- Detects: hardcoded secrets/credentials, SQL injection risks, unvalidated inputs, insecure HTTP usage, exposed sensitive routes
 
 **`review/report_generator.py`**
 - Aggregates findings from risk_analyzer + security_scanner
@@ -163,51 +159,60 @@ Ingested Codebase
 
 | Route | Method | Input | Output |
 |---|---|---|---|
-| `/ingest` | POST | `{ "repo_url": "..." }` | `{ "status": "ready", "repo_id": "..." }` |
+| `/ingest` | POST | `{ "repo_url": "..." }` | `{ "repo_id": "...", "status": "ingesting" }` |
+| `/status` | GET | `?repo_id=...` | `{ "status": "ingesting"\|"reviewing"\|"ready"\|"error", "risk_score"?: number, "error"?: string }` |
 | `/ask` | POST | `{ "repo_id": "...", "question": "..." }` | `{ "answer": "...", "sources": [...] }` |
-| `/review` | GET | `?repo_id=...` | Full risk report JSON |
+| `/review` | GET | `?repo_id=...` | Cached risk report JSON (never recomputes) |
 
 ---
 
 ### 5. UI Layer
 
-**`ui/app.py`** — Streamlit app with 3 panels:
+**`ui/app.py`** — Streamlit app:
 
 ```
 ┌─────────────────────────────────────────────┐
-│  🔗 GitHub Repo URL input + Ingest button   │
+│  Sidebar: GitHub Repo URL + Ingest button   │
+│  (optional: Private repo toggle + token)    │
+├─────────────────────────────────────────────┤
+│  [Spinner while ingestion + review runs]    │
+├─────────────────────────────────────────────┤
+│  🎯 Risk Score: 72 / 100                    │
 ├────────────────────┬────────────────────────┤
-│  🧠 Chat Interface │  🔍 Risk Report Panel  │
+│  Tab: Ask          │  Tab: Risk Review       │
 │                    │                         │
-│  Ask anything      │  Summary metrics        │
-│  about the repo    │  Untested functions     │
-│                    │  Breaking points        │
-│                    │  Security issues        │
+│  Ask anything      │  Full risk breakdown    │
+│  about the repo    │  [Download .md report]  │
 └────────────────────┴────────────────────────┘
 ```
+
+---
+
+## State Management
+
+In-memory `dict[repo_id, RepoState]` shared across FastAPI routes holds ingestion status, risk score, and cached report for each session. ChromaDB is persisted on disk under `./chroma_db/<repo_id>/`.
 
 ---
 
 ## Data Flow (End to End)
 
 ```
-1. User pastes GitHub URL
-2. /ingest called → GitHub API fetches repo
-3. Files chunked + embedded into ChromaDB
-4. IBM Bob ingests repo for full context analysis
-5. repo_id returned to UI
+1. User pastes GitHub URL in Streamlit sidebar
+2. /ingest called → returns immediately with { repo_id, status: "ingesting" }
+3. Background task runs: GitHub API fetches repo → chunks → embeds into ChromaDB → risk review runs automatically
+4. UI polls /status until { status: "ready", risk_score: N }
+5. Risk Score displayed immediately as a large metric in the UI
 
 --- Module 1 (Q&A) ---
-6. User types question in chat
+6. User types question in the Ask tab
 7. /ask called → vector search retrieves relevant chunks
 8. IBM Bob answers with full context awareness
-9. Answer + source files displayed in UI
+9. Answer displayed in UI
 
 --- Module 2 (Review) ---
-10. User clicks "Run Review"
-11. /review called → risk_analyzer + security_scanner run
-12. IBM Bob reasons over codebase for each check
-13. Structured report rendered in UI
+10. User switches to Risk Review tab
+11. /review returns the cached report (never recomputes)
+12. Full risk breakdown displayed; Markdown download available
 ```
 
 ---
