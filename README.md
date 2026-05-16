@@ -60,7 +60,7 @@ Drop a GitHub repo URL and RepoSense gives you two superpowers:
 | GitHub Integration | GitHub REST API (PyGithub) |
 | Vector Store | ChromaDB |
 | Embeddings | sentence-transformers/all-MiniLM-L6-v2 |
-| Frontend | Streamlit |
+| Frontend | Plain HTML/CSS/JS (Tailwind CSS, Inter + JetBrains Mono) |
 
 ---
 
@@ -92,11 +92,13 @@ Drop a GitHub repo URL and RepoSense gives you two superpowers:
    # Terminal 1 — backend
    uvicorn api.main:app --reload
 
-   # Terminal 2 — UI
-   streamlit run ui/app.py
+   # Terminal 2 — UI (open the static file directly, or serve it)
+   # Option A: just open ui/web/index.html in your browser
+   # Option B: serve with Python
+   python -m http.server 5500 --directory ui/web
    ```
 
-5. **Use it.** Open http://localhost:8501, paste a GitHub URL, click **Ingest**. Wait ~15–30 seconds for the Risk Score.
+5. **Use it.** Open `ui/web/index.html` in your browser (or `http://localhost:5500` if serving), paste a GitHub URL, click **Analyze**. Wait ~15–30 seconds for the Risk Score.
 
 ---
 
@@ -133,7 +135,8 @@ reposense/
 │       └── review.py          # GET /review
 │
 ├── ui/
-│   └── app.py                 # Streamlit UI
+│   └── web/
+│       └── index.html         # Frontend (HTML/CSS/JS — Tailwind, animated gauge, chat)
 │
 └── demo/
     ├── DEMO_SCRIPT.md

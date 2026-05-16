@@ -41,7 +41,8 @@ RepoSense is built as a modular AI pipeline with two core modules running on a s
                         │
                         ▼
 ┌─────────────────────────────────────────────────────┐
-│                  Streamlit UI                        │
+│            Plain HTML/CSS/JS Frontend                │
+│   ui/web/index.html  (Tailwind · native fetch)       │
 │       Repo Input │ Chat Interface │ Risk Report      │
 └─────────────────────────────────────────────────────┘
 ```
@@ -168,21 +169,30 @@ Ingested Codebase
 
 ### 5. UI Layer
 
-**`ui/app.py`** — Streamlit app:
+**`ui/web/index.html`** — Single-file plain HTML/CSS/JS app:
+
+- **No build step, no framework** — served directly from disk or any static file server
+- **Tailwind CSS** (CDN) for styling; Inter + JetBrains Mono fonts
+- **Native `fetch()`** calls the FastAPI backend at `http://localhost:8000`
+- Polls `/status` every 2 s during ingestion; transitions views automatically
 
 ```
 ┌─────────────────────────────────────────────┐
-│  Sidebar: GitHub Repo URL + Ingest button   │
-│  (optional: Private repo toggle + token)    │
+│  Landing: GitHub URL input + Analyze button  │
+│  (optional: Private repo toggle + token)     │
 ├─────────────────────────────────────────────┤
-│  [Spinner while ingestion + review runs]    │
+│  Pending: Animated spinner + status copy     │
 ├─────────────────────────────────────────────┤
-│  🎯 Risk Score: 72 / 100                    │
+│  Report hero: Animated SVG gauge            │
+│  Risk Score (0–100) + 3 sub-score cards     │
 ├────────────────────┬────────────────────────┤
-│  Tab: Ask          │  Tab: Risk Review       │
+│  Tab: Risk Review  │  Tab: Ask               │
 │                    │                         │
-│  Ask anything      │  Full risk breakdown    │
-│  about the repo    │  [Download .md report]  │
+│  Recommendations   │  Chat interface         │
+│  Security table    │  Textarea + send btn    │
+│  Untested table    │  Source citations       │
+│  Breaking points   │  (collapsible)          │
+│  [Download .md]    │                         │
 └────────────────────┴────────────────────────┘
 ```
 

@@ -15,6 +15,4 @@ numpy>=1.26
 sentence-transformers==4.1.0
 tiktoken==0.9.0
 
-# UI
-streamlit==1.45.1
-pandas==2.2.3
+# UI — served as a static file (ui/web/index.html), no Python deps needed
