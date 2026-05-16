@@ -1,0 +1,1066 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>RepoSense — Repo Risk Analysis</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          ink:    { 900: "#1D1D1F", 700: "#3A3A3D", 500: "#6E6E73", 300: "#A1A1A6", 100: "#D2D2D7" },
+          surface:{ DEFAULT: "#FFFFFF", muted: "#FBFBFD", sunk: "#F5F5F7" },
+          accent: { DEFAULT: "#0071E3", hover: "#0077ED", soft: "#E8F1FE" },
+          risk:   { low: "#1A8754", mid: "#B86E00", high: "#C8102E",
+                    lowSoft: "#E6F4EC", midSoft: "#FBF1E1", highSoft: "#FBE8EC" },
+          line:   { DEFAULT: "#E8E8ED", strong: "#D2D2D7" }
+        },
+        fontFamily: {
+          sans: ["Inter", "-apple-system", "BlinkMacSystemFont", "Segoe UI", "Helvetica", "Arial", "sans-serif"],
+          mono: ["JetBrains Mono", "ui-monospace", "SFMono-Regular", "Menlo", "monospace"]
+        },
+        boxShadow: {
+          card:  "0 1px 2px rgba(0,0,0,0.04), 0 1px 1px rgba(0,0,0,0.02)",
+          lift:  "0 4px 16px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)",
+          ring:  "0 0 0 4px rgba(0,113,227,0.16)"
+        },
+        letterSpacing: { tightest: "-0.04em" }
+      }
+    }
+  };
+</script>
+<style>
+  html { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+  body { font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; }
+  .h-display { letter-spacing: -0.04em; }
+  .h-heading { letter-spacing: -0.02em; }
+
+  /* Fade-in for content swaps */
+  .fade-in { animation: fade-in 360ms ease both; }
+  @keyframes fade-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+  /* Subtle pulse for status pill while pending */
+  .pulse-dot { animation: pulse-dot 1.4s ease-in-out infinite; }
+  @keyframes pulse-dot {
+    0%, 100% { opacity: 0.45; transform: scale(0.9); }
+    50%      { opacity: 1;    transform: scale(1.05); }
+  }
+
+  /* Gauge arc draw-on */
+  .arc-progress { transition: stroke-dashoffset 1100ms cubic-bezier(0.22, 1, 0.36, 1), stroke 600ms ease; }
+
+  /* Number tick animation */
+  @keyframes count-up { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  .count-up { animation: count-up 600ms 200ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+  /* Focus ring */
+  .focus-ring:focus { outline: none; box-shadow: 0 0 0 4px rgba(0,113,227,0.18); border-color: #0071E3; }
+
+  /* Smooth tab underline */
+  .tab-underline { transition: transform 260ms cubic-bezier(0.22,1,0.36,1), width 260ms cubic-bezier(0.22,1,0.36,1); }
+
+  /* Sortable header indicator */
+  .sort-arrow { transition: opacity 160ms ease, transform 160ms ease; }
+
+  /* Chat bubble shape */
+  .bubble-user { background: #F5F5F7; }
+  .bubble-assistant { background: transparent; }
+
+  /* Code-style mono small */
+  .mono-sm { font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+
+  /* Sticky header subtle border on scroll */
+  .header-scrolled { box-shadow: 0 1px 0 #E8E8ED; }
+
+  /* Hide scrollbars on chat in a tasteful way */
+  .scroll-soft::-webkit-scrollbar { width: 8px; }
+  .scroll-soft::-webkit-scrollbar-thumb { background: #D2D2D7; border-radius: 8px; }
+  .scroll-soft::-webkit-scrollbar-track { background: transparent; }
+
+  /* Disclosure animation */
+  details > summary { list-style: none; cursor: pointer; }
+  details > summary::-webkit-details-marker { display: none; }
+  details[open] .chev { transform: rotate(90deg); }
+  .chev { transition: transform 180ms ease; }
+
+  /* Subtle table row hover */
+  tbody tr { transition: background-color 120ms ease; }
+  tbody tr:hover { background: #FBFBFD; }
+</style>
+</head>
+<body class="bg-surface text-ink-900 antialiased">
+
+<!-- ============================================================ -->
+<!--  HEADER                                                       -->
+<!-- ============================================================ -->
+<header id="topbar" class="sticky top-0 z-30 bg-surface/85 backdrop-blur transition-shadow">
+  <div class="mx-auto max-w-[1180px] px-6 lg:px-8 h-14 flex items-center justify-between">
+    <div class="flex items-center gap-2.5">
+      <!-- Logo mark -->
+      <svg width="22" height="22" viewBox="0 0 22 22" fill="none" class="text-ink-900">
+        <circle cx="11" cy="11" r="9.25" stroke="currentColor" stroke-width="1.5"/>
+        <path d="M11 4.5 V11 L15.25 13.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+      </svg>
+      <span class="font-semibold tracking-tight text-[15px]">RepoSense</span>
+      <span class="ml-2 hidden sm:inline text-ink-500 text-[13px]">Repo Risk Analysis</span>
+    </div>
+
+    <div id="header-status" class="hidden md:flex items-center gap-2 text-[13px] text-ink-500"></div>
+
+    <div class="flex items-center gap-2">
+      <button id="new-analysis-btn" class="hidden text-[13px] font-medium text-ink-700 hover:text-ink-900 px-3 py-1.5 rounded-md hover:bg-surface-sunk transition">
+        New analysis
+      </button>
+    </div>
+  </div>
+</header>
+
+<!-- ============================================================ -->
+<!--  LANDING / INPUT VIEW                                         -->
+<!-- ============================================================ -->
+<section id="landing" class="mx-auto max-w-[1180px] px-6 lg:px-8 pt-20 pb-32">
+  <div class="max-w-2xl mx-auto text-center fade-in">
+    <p class="text-[13px] tracking-wide uppercase text-accent font-medium">IBM Bob Hackathon</p>
+    <h1 class="h-display mt-4 text-5xl sm:text-6xl font-semibold leading-[1.04] text-ink-900">
+      Understand the risk<br/>
+      <span class="text-ink-500">in any repository.</span>
+    </h1>
+    <p class="mt-6 text-[17px] leading-relaxed text-ink-700 max-w-xl mx-auto">
+      Point RepoSense at a GitHub URL. We score it for coverage, complexity, and security — and let you ask anything about the code.
+    </p>
+
+    <form id="ingest-form" class="mt-10 mx-auto max-w-xl">
+      <div class="flex items-stretch rounded-2xl border border-line bg-white shadow-card focus-within:shadow-ring focus-within:border-accent transition">
+        <span class="pl-4 pr-1 flex items-center text-ink-300">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+            <path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.009-.868-.014-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.157-1.11-1.465-1.11-1.465-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.339-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0 1 12 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.203 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.31.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.02 10.02 0 0 0 22 12.017C22 6.484 17.522 2 12 2Z" fill="currentColor"/>
+          </svg>
+        </span>
+        <input id="repo-url" type="text" required
+          placeholder="https://github.com/owner/repo"
+          autocomplete="off" spellcheck="false"
+          class="flex-1 bg-transparent py-4 px-3 text-[15px] placeholder:text-ink-300 outline-none" />
+        <button type="submit"
+          class="m-1.5 inline-flex items-center gap-1.5 bg-accent hover:bg-accent-hover text-white text-[14px] font-medium px-5 rounded-xl transition">
+          Analyze
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M5 12h14M13 5l7 7-7 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+      </div>
+
+      <div class="mt-3 flex items-center justify-center gap-2 text-[13px] text-ink-500">
+        <label class="inline-flex items-center gap-1.5 cursor-pointer select-none">
+          <input id="is-private" type="checkbox" class="accent-accent w-[14px] h-[14px]" />
+          Private repository
+        </label>
+      </div>
+
+      <div id="token-row" class="hidden mt-3">
+        <input id="github-token" type="password"
+          placeholder="GitHub personal access token"
+          class="w-full max-w-md mx-auto block rounded-xl border border-line bg-white px-4 py-3 text-[14px] focus-ring transition" />
+      </div>
+    </form>
+
+    <div class="mt-12 grid grid-cols-1 sm:grid-cols-3 gap-6 text-left">
+      <div>
+        <div class="text-ink-300 mb-1">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M9 12l2 2 4-4M12 22a10 10 0 1 1 0-20 10 10 0 0 1 0 20Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <p class="text-[14px] font-medium">Test coverage</p>
+        <p class="text-[13px] text-ink-500 mt-0.5 leading-relaxed">Detects untested functions across the codebase.</p>
+      </div>
+      <div>
+        <div class="text-ink-300 mb-1">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M3 12h4l3-8 4 16 3-8h4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <p class="text-[14px] font-medium">Complexity & fan-out</p>
+        <p class="text-[13px] text-ink-500 mt-0.5 leading-relaxed">Surfaces breaking points before they break.</p>
+      </div>
+      <div>
+        <div class="text-ink-300 mb-1">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M12 2 4 5v6c0 5 3.5 9 8 11 4.5-2 8-6 8-11V5l-8-3Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
+        </div>
+        <p class="text-[14px] font-medium">Security findings</p>
+        <p class="text-[13px] text-ink-500 mt-0.5 leading-relaxed">Pattern scan, enriched by IBM Bob.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!--  PENDING STATE                                                -->
+<!-- ============================================================ -->
+<section id="pending" class="hidden mx-auto max-w-[1180px] px-6 lg:px-8 pt-20 pb-32">
+  <div class="max-w-md mx-auto text-center fade-in">
+    <div class="mx-auto w-16 h-16 mb-8 relative">
+      <svg viewBox="0 0 64 64" class="w-16 h-16 -rotate-90">
+        <circle cx="32" cy="32" r="28" stroke="#E8E8ED" stroke-width="3" fill="none"/>
+        <circle cx="32" cy="32" r="28" stroke="#0071E3" stroke-width="3" fill="none"
+          stroke-dasharray="176" stroke-dashoffset="120" stroke-linecap="round">
+          <animateTransform attributeName="transform" type="rotate"
+            from="0 32 32" to="360 32 32" dur="1.4s" repeatCount="indefinite"/>
+        </circle>
+      </svg>
+    </div>
+    <h2 class="h-heading text-2xl font-semibold" id="pending-title">Ingesting repository</h2>
+    <p class="mt-2 text-[14px] text-ink-500" id="pending-sub">Cloning, chunking, and embedding source files.</p>
+    <p class="mt-8 text-[12px] text-ink-300 mono-sm" id="pending-repo"></p>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!--  ERROR STATE                                                  -->
+<!-- ============================================================ -->
+<section id="error-view" class="hidden mx-auto max-w-[1180px] px-6 lg:px-8 pt-20 pb-32">
+  <div class="max-w-lg mx-auto text-center fade-in">
+    <div class="mx-auto w-12 h-12 mb-6 rounded-full bg-risk-highSoft flex items-center justify-center">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" class="text-risk-high">
+        <path d="M12 9v4m0 4h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </div>
+    <h2 class="h-heading text-2xl font-semibold">Something went wrong</h2>
+    <p id="error-msg" class="mt-3 text-[14px] text-ink-700 leading-relaxed"></p>
+    <button onclick="resetToLanding()" class="mt-8 inline-flex items-center gap-1.5 text-accent hover:text-accent-hover text-[14px] font-medium">
+      Try another repository
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M5 12h14M13 5l7 7-7 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!--  REPORT VIEW                                                  -->
+<!-- ============================================================ -->
+<section id="report" class="hidden mx-auto max-w-[1180px] px-6 lg:px-8 pt-10 pb-24 fade-in">
+
+  <!-- Hero: Gauge + sub-scores -->
+  <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-10 items-center">
+    <!-- Gauge -->
+    <div class="lg:col-span-5">
+      <div class="flex flex-col items-center lg:items-start">
+        <p class="text-[12px] uppercase tracking-wide text-ink-500 font-medium">Overall risk</p>
+        <div class="relative mt-3 w-[320px] h-[260px]">
+          <!--
+            Gauge: 270° arc, center (160,140), radius 120.
+            Start angle 135°, end angle 45° (CCW from positive x in math, going CW in SVG).
+            Start point: (75.15, 224.85)   End point: (244.85, 224.85)
+            Arc length: 2*PI*120 * 270/360 = 565.49
+          -->
+          <svg viewBox="0 0 320 260" class="w-full h-full">
+            <!-- Track -->
+            <path d="M 75.15 224.85 A 120 120 0 1 1 244.85 224.85"
+              stroke="#E8E8ED" stroke-width="14" fill="none" stroke-linecap="round"/>
+            <!-- Progress -->
+            <path id="gauge-arc" d="M 75.15 224.85 A 120 120 0 1 1 244.85 224.85"
+              stroke="#1A8754" stroke-width="14" fill="none" stroke-linecap="round"
+              stroke-dasharray="565.49" stroke-dashoffset="565.49"
+              class="arc-progress"/>
+            <!-- Endpoint + apex tick labels -->
+            <text x="64"  y="248" font-size="10" fill="#A1A1A6" text-anchor="middle">0</text>
+            <text x="160" y="32"  font-size="10" fill="#A1A1A6" text-anchor="middle">50</text>
+            <text x="256" y="248" font-size="10" fill="#A1A1A6" text-anchor="middle">100</text>
+          </svg>
+          <div class="absolute inset-0 flex flex-col items-center justify-center pt-4">
+            <div id="risk-score-num" class="count-up text-[72px] leading-none font-semibold h-display text-ink-900">0</div>
+            <div class="mt-1 text-[12px] text-ink-500">out of 100</div>
+            <div id="risk-band" class="mt-3 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[12px] font-medium"></div>
+          </div>
+        </div>
+        <p id="repo-path" class="mt-2 text-[13px] text-ink-500 mono-sm"></p>
+      </div>
+    </div>
+
+    <!-- Sub-score cards -->
+    <div class="lg:col-span-7">
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div id="card-coverage"   class="subscore-card"></div>
+        <div id="card-complexity" class="subscore-card"></div>
+        <div id="card-security"   class="subscore-card"></div>
+      </div>
+
+      <div id="banners" class="mt-5 flex flex-col gap-2"></div>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="mt-14 border-b border-line">
+    <div class="relative flex items-center gap-6">
+      <button data-tab="review" class="tab-btn py-3 text-[14px] font-medium text-ink-900">Risk Review</button>
+      <button data-tab="ask"    class="tab-btn py-3 text-[14px] font-medium text-ink-500 hover:text-ink-900">Ask</button>
+      <div class="absolute bottom-0 left-0 h-[2px] bg-ink-900 tab-underline" id="tab-underline" style="width:96px; transform:translateX(0);"></div>
+
+      <div class="ml-auto">
+        <button id="download-md-btn" class="text-[13px] font-medium text-ink-700 hover:text-ink-900 inline-flex items-center gap-1.5">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 21h14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Download report
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Review tab -->
+  <div id="tab-review" class="pt-10 fade-in">
+    <!-- Recommendations -->
+    <section class="mb-14">
+      <div class="flex items-baseline justify-between mb-5">
+        <h3 class="h-heading text-[20px] font-semibold">Recommendations</h3>
+        <p class="text-[12px] text-ink-500">Prioritized actions</p>
+      </div>
+      <ol id="recs" class="grid grid-cols-1 md:grid-cols-2 gap-3"></ol>
+    </section>
+
+    <!-- Security findings -->
+    <section class="mb-14">
+      <div class="flex items-baseline justify-between mb-5">
+        <h3 class="h-heading text-[20px] font-semibold">Security findings</h3>
+        <p id="sec-count" class="text-[12px] text-ink-500"></p>
+      </div>
+      <div id="sec-wrap" class="overflow-hidden rounded-xl border border-line bg-white"></div>
+    </section>
+
+    <!-- Untested functions -->
+    <section class="mb-14">
+      <div class="flex items-baseline justify-between mb-5">
+        <h3 class="h-heading text-[20px] font-semibold">Untested functions</h3>
+        <p id="untested-count" class="text-[12px] text-ink-500"></p>
+      </div>
+      <div id="untested-wrap" class="overflow-hidden rounded-xl border border-line bg-white"></div>
+    </section>
+
+    <!-- Breaking points -->
+    <section class="mb-4">
+      <div class="flex items-baseline justify-between mb-5">
+        <h3 class="h-heading text-[20px] font-semibold">Breaking points</h3>
+        <p id="bp-count" class="text-[12px] text-ink-500">High fan-out functions</p>
+      </div>
+      <div id="bp-wrap" class="overflow-hidden rounded-xl border border-line bg-white"></div>
+    </section>
+  </div>
+
+  <!-- Ask tab -->
+  <div id="tab-ask" class="hidden pt-10 fade-in">
+    <div class="max-w-[760px] mx-auto">
+      <div id="chat-empty" class="text-center py-16">
+        <div class="mx-auto w-10 h-10 mb-4 text-ink-300">
+          <svg viewBox="0 0 24 24" fill="none" class="w-10 h-10"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>
+        </div>
+        <h3 class="h-heading text-[18px] font-semibold">Ask anything about this repo</h3>
+        <p class="mt-1.5 text-[13px] text-ink-500">Where is auth handled? How does the ingestion pipeline work? What runs in CI?</p>
+      </div>
+
+      <div id="chat-messages" class="space-y-6"></div>
+
+      <div class="sticky bottom-4 mt-8">
+        <form id="ask-form" class="flex items-end gap-2 p-2 rounded-2xl border border-line bg-white shadow-card focus-within:shadow-ring focus-within:border-accent transition">
+          <textarea id="ask-input" rows="1" placeholder="Ask about this codebase…"
+            class="flex-1 bg-transparent resize-none px-3 py-2.5 text-[14px] placeholder:text-ink-300 outline-none max-h-40"></textarea>
+          <button type="submit" id="ask-submit"
+            class="inline-flex items-center justify-center w-9 h-9 rounded-xl bg-accent hover:bg-accent-hover text-white transition disabled:opacity-40 disabled:cursor-not-allowed">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M12 19V5m0 0-7 7m7-7 7 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer class="border-t border-line">
+  <div class="mx-auto max-w-[1180px] px-6 lg:px-8 py-6 flex items-center justify-between text-[12px] text-ink-500">
+    <span>RepoSense · Built for the IBM Bob Hackathon</span>
+    <span class="mono-sm">v0.1</span>
+  </div>
+</footer>
+
+<!-- ============================================================ -->
+<!--  Template: sub-score card                                     -->
+<!-- ============================================================ -->
+<style>
+  .subscore-card {
+    background: #FFFFFF;
+    border: 1px solid #E8E8ED;
+    border-radius: 14px;
+    padding: 18px 18px 16px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+    transition: box-shadow 200ms ease, transform 200ms ease;
+  }
+  .subscore-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.06); transform: translateY(-1px); }
+  .meter-track { height: 4px; background: #F0F0F4; border-radius: 999px; overflow: hidden; }
+  .meter-fill  { height: 100%; border-radius: 999px; transition: width 900ms cubic-bezier(0.22,1,0.36,1), background-color 300ms ease; }
+
+  .rec-item {
+    background: #FFFFFF;
+    border: 1px solid #E8E8ED;
+    border-radius: 12px;
+    padding: 14px 16px;
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+  }
+  .rec-num {
+    flex: 0 0 24px; height: 24px;
+    border-radius: 999px;
+    background: #E8F1FE; color: #0071E3;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 600;
+  }
+
+  table.rs-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .rs-table thead th {
+    text-align: left; font-weight: 500; color: #6E6E73;
+    padding: 12px 16px; border-bottom: 1px solid #E8E8ED;
+    background: #FBFBFD; user-select: none;
+  }
+  .rs-table thead th.sortable { cursor: pointer; }
+  .rs-table thead th.sortable:hover { color: #1D1D1F; }
+  .rs-table tbody td {
+    padding: 12px 16px;
+    border-bottom: 1px solid #F0F0F4;
+    vertical-align: top;
+  }
+  .rs-table tbody tr:last-child td { border-bottom: none; }
+  .path-cell { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 12px; color: #3A3A3D; }
+  .sev-dot { display: inline-block; width: 8px; height: 8px; border-radius: 999px; margin-right: 8px; vertical-align: middle; }
+  .empty-row { padding: 28px; text-align: center; color: #6E6E73; font-size: 13px; }
+
+  .banner {
+    display: flex; gap: 10px; align-items: flex-start;
+    padding: 10px 14px; border-radius: 10px; font-size: 13px;
+    border: 1px solid;
+  }
+  .banner-warn { background: #FBF1E1; border-color: #F2D9A4; color: #6F4500; }
+
+  .chip-status {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 3px 9px; border-radius: 999px;
+    font-size: 12px; font-weight: 500;
+  }
+  .chip-ready    { background: #E6F4EC; color: #0F6B43; }
+  .chip-pending  { background: #E8F1FE; color: #0057B2; }
+  .chip-error    { background: #FBE8EC; color: #9A0C26; }
+</style>
+
+<script>
+// ============================================================
+//  RepoSense Web UI
+// ============================================================
+const API_BASE = (window.localStorage.getItem("REPOSENSE_API_BASE")) || "http://localhost:8000";
+const POLL_INTERVAL_MS = 2000;
+const ASK_TIMEOUT_MS = 120000;
+const REVIEW_TIMEOUT_MS = 120000;
+
+const STATE = {
+  repoId: null,
+  repoUrl: null,
+  status: "idle",
+  report: null,
+  pollTimer: null,
+  messages: [],
+  activeTab: "review",
+  sortState: { sec: null, untested: null, bp: null },
+};
+
+// ----- HTTP helpers ----------------------------------------
+async function apiFetch(path, { method = "GET", body, timeoutMs = 30000, parseAs = "json", params } = {}) {
+  const url = new URL(API_BASE + path);
+  if (params) Object.entries(params).forEach(([k, v]) => v != null && url.searchParams.set(k, v));
+
+  const ctl = new AbortController();
+  const t = setTimeout(() => ctl.abort(), timeoutMs);
+  try {
+    const res = await fetch(url.toString(), {
+      method,
+      headers: body ? { "Content-Type": "application/json" } : undefined,
+      body: body ? JSON.stringify(body) : undefined,
+      signal: ctl.signal,
+    });
+    if (!res.ok) {
+      let detail = "";
+      try { const j = await res.json(); detail = j.detail || j.message || ""; } catch { detail = await res.text(); }
+      const err = new Error(detail || `${res.status} ${res.statusText}`);
+      err.status = res.status;
+      throw err;
+    }
+    if (parseAs === "text") return await res.text();
+    return await res.json();
+  } catch (e) {
+    if (e.name === "AbortError") throw new Error(`Request timed out — is the backend running on ${API_BASE}?`);
+    if (e instanceof TypeError) throw new Error(`Couldn't reach the backend at ${API_BASE}.`);
+    throw e;
+  } finally { clearTimeout(t); }
+}
+
+// ----- View switching --------------------------------------
+function show(view) {
+  ["landing", "pending", "error-view", "report"].forEach(id => {
+    document.getElementById(id).classList.toggle("hidden", id !== view);
+  });
+  document.getElementById("new-analysis-btn").classList.toggle("hidden", view === "landing");
+}
+
+function setHeaderStatus(status, repoPath) {
+  const el = document.getElementById("header-status");
+  if (status === "idle") { el.innerHTML = ""; return; }
+  const map = {
+    ingesting: { cls: "chip-pending", label: "Ingesting" },
+    reviewing: { cls: "chip-pending", label: "Reviewing" },
+    ready:     { cls: "chip-ready",   label: "Ready" },
+    error:     { cls: "chip-error",   label: "Error" },
+  };
+  const m = map[status] || { cls: "chip-pending", label: status };
+  const dot = (status === "ingesting" || status === "reviewing")
+    ? `<span class="pulse-dot inline-block w-1.5 h-1.5 rounded-full bg-accent"></span>`
+    : (status === "ready"
+        ? `<span class="inline-block w-1.5 h-1.5 rounded-full bg-risk-low"></span>`
+        : (status === "error"
+          ? `<span class="inline-block w-1.5 h-1.5 rounded-full bg-risk-high"></span>` : ""));
+  el.innerHTML = `
+    <span class="chip-status ${m.cls}">${dot} ${m.label}</span>
+    ${repoPath ? `<span class="mono-sm text-ink-500">${escapeHtml(repoPath)}</span>` : ""}
+  `;
+}
+
+function resetToLanding() {
+  console.log("[RepoSense] resetToLanding called", new Error().stack);
+  if (STATE.pollTimer) { clearTimeout(STATE.pollTimer); STATE.pollTimer = null; }
+  Object.assign(STATE, { repoId: null, repoUrl: null, status: "idle", report: null, messages: [], sortState: { sec: null, untested: null, bp: null } });
+  document.getElementById("chat-messages").innerHTML = "";
+  document.getElementById("chat-empty").classList.remove("hidden");
+  document.getElementById("repo-url").value = "";
+  document.getElementById("github-token").value = "";
+  document.getElementById("is-private").checked = false;
+  document.getElementById("token-row").classList.add("hidden");
+  setHeaderStatus("idle");
+  show("landing");
+}
+document.getElementById("new-analysis-btn").addEventListener("click", resetToLanding);
+
+// ----- Ingest flow -----------------------------------------
+document.getElementById("is-private").addEventListener("change", (e) => {
+  document.getElementById("token-row").classList.toggle("hidden", !e.target.checked);
+});
+
+document.getElementById("ingest-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const repoUrl = document.getElementById("repo-url").value.trim();
+  const isPrivate = document.getElementById("is-private").checked;
+  const token = document.getElementById("github-token").value.trim();
+  if (!repoUrl) return;
+  if (isPrivate && !token) {
+    showError("Private repository selected but no GitHub token provided.");
+    return;
+  }
+  clearLandingNotice();
+  STATE.repoUrl = repoUrl;
+  const repoPath = repoUrl.replace(/^https?:\/\/github\.com\//, "");
+  document.getElementById("pending-repo").textContent = repoPath;
+  document.getElementById("pending-title").textContent = "Ingesting repository";
+  document.getElementById("pending-sub").textContent = "Cloning, chunking, and embedding source files.";
+  show("pending");
+  setHeaderStatus("ingesting", repoPath);
+
+  try {
+    const res = await apiFetch("/ingest", {
+      method: "POST",
+      body: { repo_url: repoUrl, github_token: token || null },
+    });
+    STATE.repoId = res.repo_id;
+    STATE.status = res.status;
+    if (res.status === "ready") {
+      await loadReport();
+    } else {
+      pollStatus();
+    }
+  } catch (err) {
+    showError(err.message);
+  }
+});
+
+function pollStatus() {
+  STATE.pollTimer = setTimeout(async () => {
+    // Bail early if state was cleared (e.g. user clicked New analysis mid-poll)
+    if (!STATE.repoId) return;
+    try {
+      const res = await apiFetch("/status", { params: { repo_id: STATE.repoId } });
+      STATE.status = res.status;
+      const repoPath = STATE.repoUrl?.replace(/^https?:\/\/github\.com\//, "") || "";
+
+      console.log("[RepoSense] poll status:", res.status, "repo_id:", STATE.repoId);
+      if (res.status === "reviewing") {
+        document.getElementById("pending-title").textContent = "Running risk review";
+        document.getElementById("pending-sub").textContent = "Scoring coverage, complexity, and security findings.";
+        setHeaderStatus("reviewing", repoPath);
+        pollStatus();
+      } else if (res.status === "ingesting") {
+        setHeaderStatus("ingesting", repoPath);
+        pollStatus();
+      } else if (res.status === "ready") {
+        setHeaderStatus("ready", repoPath);
+        await loadReport();
+      } else if (res.status === "error") {
+        console.error("[RepoSense] pipeline error:", res.error);
+        showError(res.error || "Pipeline failed.");
+      } else {
+        pollStatus();
+      }
+    } catch (err) {
+      if (err.status === 404) { handleStaleRepoId(); return; }
+      showError(err.message);
+    }
+  }, POLL_INTERVAL_MS);
+}
+
+async function loadReport() {
+  console.log("[RepoSense] loadReport called, repo_id:", STATE.repoId);
+  try {
+    const report = await apiFetch("/review", { params: { repo_id: STATE.repoId }, timeoutMs: REVIEW_TIMEOUT_MS });
+    console.log("[RepoSense] /review OK — risk_score:", report?.risk_score);
+    STATE.report = report;
+    try {
+      renderReport(report);
+    } catch (renderErr) {
+      console.error("[RepoSense] renderReport crashed:", renderErr);
+      showError("Report rendered but crashed: " + renderErr.message);
+      return;
+    }
+    console.log("[RepoSense] renderReport done, calling show('report')");
+    show("report");
+    console.log("[RepoSense] show('report') done — report view should be visible");
+  } catch (err) {
+    console.error("[RepoSense] /review error — status:", err.status, "msg:", err.message);
+    if (err.status === 404) { handleStaleRepoId(); return; }
+    showError(err.message);
+  }
+}
+
+// Backend forgot this repo_id (in-memory state wiped, e.g. uvicorn --reload).
+function handleStaleRepoId() {
+  console.warn("[RepoSense] 404 — repo_id not found in server state. Server likely restarted.");
+  if (STATE.pollTimer) { clearTimeout(STATE.pollTimer); STATE.pollTimer = null; }
+  STATE.status = "error";
+  const msg = STATE.repoUrl
+    ? `Analysis session expired (the backend was restarted mid-analysis). Click below to re-analyze ${STATE.repoUrl}.`
+    : "Analysis session expired — the backend was restarted. Please re-analyze your repository.";
+  document.getElementById("error-msg").textContent = msg;
+  setHeaderStatus("error");
+  show("error-view");
+}
+
+function showLandingNotice(msg) {
+  let el = document.getElementById("landing-notice");
+  if (!el) {
+    el = document.createElement("div");
+    el.id = "landing-notice";
+    el.className = "max-w-xl mx-auto mt-6 banner banner-warn fade-in";
+    el.innerHTML = `
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" class="mt-0.5 flex-shrink-0">
+        <path d="M12 9v4m0 4h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <span id="landing-notice-msg"></span>`;
+    document.getElementById("ingest-form").insertAdjacentElement("afterend", el);
+  }
+  el.querySelector("#landing-notice-msg").textContent = msg;
+}
+
+function clearLandingNotice() {
+  document.getElementById("landing-notice")?.remove();
+}
+
+function showError(msg) {
+  if (STATE.pollTimer) { clearTimeout(STATE.pollTimer); STATE.pollTimer = null; }
+  STATE.status = "error";
+  document.getElementById("error-msg").textContent = msg;
+  setHeaderStatus("error");
+  show("error-view");
+}
+
+// ----- Render: report --------------------------------------
+function riskBand(score) {
+  if (score <= 30) return { label: "Low risk",      color: "#1A8754", soft: "#E6F4EC" };
+  if (score <= 70) return { label: "Moderate risk", color: "#B86E00", soft: "#FBF1E1" };
+  return                  { label: "High risk",     color: "#C8102E", soft: "#FBE8EC" };
+}
+
+function renderReport(report) {
+  const score = Math.round(report.risk_score ?? 0);
+  const band = riskBand(score);
+  document.getElementById("repo-path").textContent = STATE.repoUrl?.replace(/^https?:\/\/github\.com\//, "") || "";
+
+  // Gauge — arc length is 565.49 (270° at r=120). Map score 0–100 → dashoffset.
+  const arc = document.getElementById("gauge-arc");
+  const total = 565.49;
+  const offset = total - (score / 100) * total;
+  arc.setAttribute("stroke", band.color);
+  // Trigger transition next frame
+  requestAnimationFrame(() => { arc.setAttribute("stroke-dashoffset", offset); });
+
+  // Animate the number
+  animateNumber(document.getElementById("risk-score-num"), 0, score, 1100);
+
+  // Band chip
+  const chip = document.getElementById("risk-band");
+  chip.innerHTML = `<span style="width:8px;height:8px;border-radius:999px;background:${band.color};display:inline-block"></span>${band.label}`;
+  chip.style.background = band.soft;
+  chip.style.color = band.color;
+
+  // Sub-scores — all framed as RISK (high = bad)
+  const s = report.scores || {};
+  renderSubScore("card-coverage",   "Coverage Risk",   s.coverage_score,   "Higher = more untested code");
+  renderSubScore("card-complexity", "Complexity Risk", s.complexity_score, "Higher = more tangled call graph");
+  renderSubScore("card-security",   "Security Risk",   s.security_score,   "Higher = more sensitive patterns found");
+
+  // Banners
+  const banners = document.getElementById("banners");
+  banners.innerHTML = "";
+  const sm = report.summary || {};
+  if (sm.no_tests_detected) {
+    banners.insertAdjacentHTML("beforeend", banner("No test files detected — coverage risk reported as maximum."));
+  }
+  if (sm.bob_enrichment_available === false) {
+    banners.insertAdjacentHTML("beforeend", banner("IBM Bob enrichment was unavailable — security findings are regex-only (preliminary)."));
+  }
+
+  // Recommendations
+  const recs = document.getElementById("recs");
+  recs.innerHTML = "";
+  (report.recommendations || []).forEach((r, i) => {
+    const li = document.createElement("li");
+    li.className = "rec-item";
+    li.innerHTML = `<span class="rec-num">${i + 1}</span><span class="text-[14px] leading-relaxed text-ink-900">${escapeHtml(r)}</span>`;
+    recs.appendChild(li);
+  });
+  if ((report.recommendations || []).length === 0) {
+    recs.innerHTML = `<div class="rec-item col-span-full text-ink-500 text-[13px] justify-center">No additional recommendations.</div>`;
+  }
+
+  renderSecurityTable(report.security_findings || []);
+  renderUntestedTable(report.untested_functions || []);
+  renderBreakingPointsTable(report.breaking_points || []);
+
+  // Reset to review tab
+  switchTab("review");
+}
+
+function renderSubScore(elId, label, value, hint) {
+  const el = document.getElementById(elId);
+  const val = (value == null) ? null : Math.round(value);
+  const band = val == null ? null : riskBand(val);
+  el.innerHTML = `
+    <div class="flex items-start justify-between">
+      <div>
+        <p class="text-[12px] uppercase tracking-wide text-ink-500 font-medium">${label}</p>
+        <p class="mt-2 text-[28px] font-semibold h-heading">
+          ${val == null ? '<span class="text-ink-300">—</span>' : val + '<span class="text-ink-300 text-[16px] font-medium">/100</span>'}
+        </p>
+      </div>
+      ${band ? `<span class="text-[11px] font-medium px-2 py-0.5 rounded-full" style="background:${band.soft};color:${band.color}">${band.label.split(' ')[0]}</span>` : ''}
+    </div>
+    <div class="mt-3 meter-track">
+      <div class="meter-fill" style="width:${val == null ? 0 : val}%;background:${band ? band.color : '#D2D2D7'}"></div>
+    </div>
+    <p class="mt-3 text-[12px] text-ink-500">${hint}</p>
+  `;
+}
+
+function banner(text) {
+  return `
+    <div class="banner banner-warn">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" class="mt-0.5 flex-shrink-0">
+        <path d="M12 9v4m0 4h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <span>${escapeHtml(text)}</span>
+    </div>`;
+}
+
+// ----- Tables w/ sorting -----------------------------------
+function buildTable(wrapId, columns, rows, emptyMsg, sortKey) {
+  const wrap = document.getElementById(wrapId);
+  if (!rows.length) {
+    wrap.innerHTML = `<div class="empty-row">${escapeHtml(emptyMsg)}</div>`;
+    return;
+  }
+  const head = columns.map(c => `
+    <th class="${c.sortable ? "sortable" : ""}" data-key="${c.key}">
+      <span class="inline-flex items-center gap-1">
+        ${escapeHtml(c.label)}
+        ${c.sortable ? `<svg class="sort-arrow" width="10" height="10" viewBox="0 0 10 10" style="opacity:0.35"><path d="M5 2 L8 6 H2 Z" fill="currentColor"/></svg>` : ""}
+      </span>
+    </th>
+  `).join("");
+  const body = rows.map(r => `
+    <tr>${columns.map(c => `<td>${c.render ? c.render(r) : escapeHtml(String(r[c.key] ?? ""))}</td>`).join("")}</tr>
+  `).join("");
+  wrap.innerHTML = `<table class="rs-table"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
+
+  // Wire sort
+  wrap.querySelectorAll("th.sortable").forEach(th => {
+    th.addEventListener("click", () => {
+      const key = th.dataset.key;
+      const prev = STATE.sortState[sortKey];
+      const dir = (prev && prev.key === key && prev.dir === "asc") ? "desc" : "asc";
+      STATE.sortState[sortKey] = { key, dir };
+      const sorted = [...rows].sort((a, b) => {
+        const av = a[key], bv = b[key];
+        if (typeof av === "number" && typeof bv === "number") return dir === "asc" ? av - bv : bv - av;
+        return dir === "asc"
+          ? String(av ?? "").localeCompare(String(bv ?? ""))
+          : String(bv ?? "").localeCompare(String(av ?? ""));
+      });
+      buildTable(wrapId, columns, sorted, emptyMsg, sortKey);
+    });
+  });
+}
+
+const SEV_META = {
+  high:   { color: "#C8102E", label: "High" },
+  medium: { color: "#B86E00", label: "Medium" },
+  low:    { color: "#1A8754", label: "Low" },
+};
+
+function renderSecurityTable(findings) {
+  const data = findings.slice(0, 50);
+  document.getElementById("sec-count").textContent = findings.length ? `${findings.length} finding${findings.length === 1 ? "" : "s"}` : "";
+  // Normalize for sorting — severity rank
+  const rank = { high: 3, medium: 2, low: 1 };
+  const rows = data.map(f => ({
+    ...f,
+    _sevRank: rank[f.severity] || 0,
+    fileLine: `${f.file_path}:${f.line}`,
+  }));
+  buildTable("sec-wrap", [
+    { key: "_sevRank", label: "Severity", sortable: true, render: f => {
+        const m = SEV_META[f.severity] || { color: "#6E6E73", label: f.severity || "—" };
+        return `<span class="sev-dot" style="background:${m.color}"></span><span style="color:${m.color};font-weight:500">${m.label}</span>`;
+      }
+    },
+    { key: "pattern_matched", label: "Pattern", sortable: true, render: f => `<span class="mono-sm">${escapeHtml(f.pattern_matched || "")}</span>` },
+    { key: "fileLine", label: "Location", sortable: true, render: f => `<span class="path-cell">${escapeHtml(f.file_path)}<span class="text-ink-300">:${f.line}</span></span>` },
+    { key: "description", label: "Description", sortable: false, render: f => `<span class="text-ink-700">${escapeHtml(f.description || "")}</span>${f.bob_enriched ? `<span class="ml-2 text-[11px] px-1.5 py-0.5 rounded-md bg-accent-soft text-accent font-medium">Bob</span>` : ""}` },
+  ], rows, "No security findings detected.", "sec");
+}
+
+function renderUntestedTable(funcs) {
+  const data = funcs.slice(0, 50);
+  document.getElementById("untested-count").textContent = funcs.length ? `${funcs.length} function${funcs.length === 1 ? "" : "s"}` : "";
+  buildTable("untested-wrap", [
+    { key: "name", label: "Function", sortable: true, render: f => `<span class="mono-sm text-ink-900">${escapeHtml(f.name)}</span>` },
+    { key: "path", label: "File", sortable: true, render: f => `<span class="path-cell">${escapeHtml(f.path)}<span class="text-ink-300">:${f.line}</span></span>` },
+    { key: "language", label: "Language", sortable: true },
+    { key: "detection_method", label: "Detection", sortable: true, render: f => `<span class="text-ink-500 text-[12px]">${escapeHtml(f.detection_method || "")}</span>` },
+  ], data, "No untested functions detected.", "untested");
+}
+
+function renderBreakingPointsTable(bps) {
+  const data = bps.slice(0, 50);
+  document.getElementById("bp-count").textContent = bps.length ? `${bps.length} hotspot${bps.length === 1 ? "" : "s"} · high fan-out functions` : "High fan-out functions";
+  buildTable("bp-wrap", [
+    { key: "name", label: "Function", sortable: true, render: f => `<span class="mono-sm text-ink-900">${escapeHtml(f.name)}</span>` },
+    { key: "path", label: "File", sortable: true, render: f => `<span class="path-cell">${escapeHtml(f.path)}<span class="text-ink-300">:${f.line}</span></span>` },
+    { key: "fan_out", label: "Fan-out", sortable: true, render: f => `<span class="tabular-nums font-medium">${f.fan_out}</span>` },
+  ], data, "No high fan-out hotspots detected.", "bp");
+}
+
+// ----- Tabs -------------------------------------------------
+document.querySelectorAll(".tab-btn").forEach(b => {
+  b.addEventListener("click", () => switchTab(b.dataset.tab));
+});
+function switchTab(name) {
+  STATE.activeTab = name;
+  document.querySelectorAll(".tab-btn").forEach(b => {
+    const active = b.dataset.tab === name;
+    b.classList.toggle("text-ink-900", active);
+    b.classList.toggle("text-ink-500", !active);
+  });
+  document.getElementById("tab-review").classList.toggle("hidden", name !== "review");
+  document.getElementById("tab-ask").classList.toggle("hidden", name !== "ask");
+
+  // Reposition underline
+  const underline = document.getElementById("tab-underline");
+  const target = document.querySelector(`.tab-btn[data-tab="${name}"]`);
+  if (target && underline) {
+    const containerRect = target.parentElement.getBoundingClientRect();
+    const r = target.getBoundingClientRect();
+    underline.style.width = `${r.width}px`;
+    underline.style.transform = `translateX(${r.left - containerRect.left}px)`;
+  }
+}
+
+// ----- Markdown download ------------------------------------
+document.getElementById("download-md-btn").addEventListener("click", async () => {
+  if (!STATE.repoId) return;
+  try {
+    const md = await apiFetch("/review", { params: { repo_id: STATE.repoId, format: "markdown" }, parseAs: "text", timeoutMs: REVIEW_TIMEOUT_MS });
+    const blob = new Blob([md], { type: "text/markdown" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `reposense_report_${STATE.repoId}.md`;
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(a.href);
+  } catch (err) {
+    showError(err.message);
+  }
+});
+
+// ----- Ask flow ---------------------------------------------
+const askInput = document.getElementById("ask-input");
+askInput.addEventListener("input", () => {
+  askInput.style.height = "auto";
+  askInput.style.height = Math.min(160, askInput.scrollHeight) + "px";
+});
+askInput.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && !e.shiftKey) {
+    e.preventDefault();
+    document.getElementById("ask-form").requestSubmit();
+  }
+});
+
+document.getElementById("ask-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const q = askInput.value.trim();
+  if (!q || !STATE.repoId) return;
+  appendMessage("user", q);
+  askInput.value = ""; askInput.style.height = "auto";
+  const submitBtn = document.getElementById("ask-submit");
+  submitBtn.disabled = true;
+  const pendingId = appendPending();
+
+  try {
+    const res = await apiFetch("/ask", {
+      method: "POST",
+      body: { repo_id: STATE.repoId, question: q },
+      timeoutMs: ASK_TIMEOUT_MS,
+    });
+    removeElement(pendingId);
+    appendMessage("assistant", res.answer, res.sources || [], !!res.is_location_question);
+  } catch (err) {
+    removeElement(pendingId);
+    appendMessage("assistant-error", err.message);
+  } finally {
+    submitBtn.disabled = false;
+  }
+});
+
+function appendMessage(role, content, sources = [], isLocation = false) {
+  document.getElementById("chat-empty").classList.add("hidden");
+  const wrap = document.getElementById("chat-messages");
+  const el = document.createElement("div");
+  el.className = "fade-in";
+
+  if (role === "user") {
+    el.innerHTML = `
+      <div class="flex justify-end">
+        <div class="bubble-user max-w-[80%] px-4 py-2.5 rounded-2xl text-[14px] leading-relaxed text-ink-900">${escapeHtml(content)}</div>
+      </div>`;
+  } else if (role === "assistant-error") {
+    el.innerHTML = `
+      <div class="flex justify-start">
+        <div class="max-w-[88%] px-1 py-1 text-[14px] leading-relaxed text-risk-high">${escapeHtml(content)}</div>
+      </div>`;
+  } else {
+    const sourcesHtml = renderSources(sources, isLocation);
+    el.innerHTML = `
+      <div class="flex justify-start">
+        <div class="max-w-[88%] w-full">
+          <div class="bubble-assistant px-1 py-1 text-[14px] leading-relaxed text-ink-900 whitespace-pre-wrap">${escapeHtml(content)}</div>
+          ${sourcesHtml}
+        </div>
+      </div>`;
+  }
+  wrap.appendChild(el);
+  el.scrollIntoView({ behavior: "smooth", block: "end" });
+}
+
+function renderSources(sources, isLocation) {
+  if (!sources || sources.length === 0) return "";
+  const list = sources.map(s => `
+    <li class="flex items-baseline gap-2 py-1.5">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" class="text-ink-300 mt-0.5 flex-shrink-0">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+        <path d="M14 2v6h6" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+      </svg>
+      <span class="mono-sm text-ink-700">${escapeHtml(s.path)}<span class="text-ink-300">:${s.start_line}-${s.end_line}</span></span>
+    </li>
+  `).join("");
+
+  if (isLocation) {
+    return `
+      <div class="mt-2 pl-1">
+        <p class="text-[11px] uppercase tracking-wide text-ink-500 font-medium mb-1">Sources</p>
+        <ul>${list}</ul>
+      </div>`;
+  }
+  return `
+    <details class="mt-2 pl-1">
+      <summary class="inline-flex items-center gap-1 text-[12px] text-ink-500 hover:text-ink-700">
+        <svg class="chev" width="10" height="10" viewBox="0 0 10 10" fill="currentColor"><path d="M3 1 L7 5 L3 9 Z"/></svg>
+        ${sources.length} source${sources.length === 1 ? "" : "s"}
+      </summary>
+      <ul class="mt-1">${list}</ul>
+    </details>`;
+}
+
+function appendPending() {
+  const id = "pending-" + Math.random().toString(36).slice(2);
+  document.getElementById("chat-empty").classList.add("hidden");
+  const wrap = document.getElementById("chat-messages");
+  const el = document.createElement("div");
+  el.id = id;
+  el.className = "fade-in";
+  el.innerHTML = `
+    <div class="flex justify-start">
+      <div class="inline-flex items-center gap-2 text-[13px] text-ink-500">
+        <span class="inline-flex gap-0.5">
+          <span class="w-1.5 h-1.5 rounded-full bg-ink-300 pulse-dot" style="animation-delay:0ms"></span>
+          <span class="w-1.5 h-1.5 rounded-full bg-ink-300 pulse-dot" style="animation-delay:160ms"></span>
+          <span class="w-1.5 h-1.5 rounded-full bg-ink-300 pulse-dot" style="animation-delay:320ms"></span>
+        </span>
+        Thinking
+      </div>
+    </div>`;
+  wrap.appendChild(el);
+  el.scrollIntoView({ behavior: "smooth", block: "end" });
+  return id;
+}
+function removeElement(id) { document.getElementById(id)?.remove(); }
+
+// ----- Utilities --------------------------------------------
+function escapeHtml(s) {
+  return String(s ?? "").replace(/[&<>"']/g, c => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+  }[c]));
+}
+
+function animateNumber(el, from, to, duration) {
+  const start = performance.now();
+  function frame(now) {
+    const t = Math.min(1, (now - start) / duration);
+    const eased = 1 - Math.pow(1 - t, 3); // easeOutCubic
+    const v = Math.round(from + (to - from) * eased);
+    el.textContent = v;
+    if (t < 1) requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+}
+
+// ----- Header scroll shadow ---------------------------------
+const header = document.getElementById("topbar");
+window.addEventListener("scroll", () => {
+  header.classList.toggle("header-scrolled", window.scrollY > 4);
+});
+
+// Warn before page unload mid-analysis so Live Server / accidental refresh doesn't silently kill it
+window.addEventListener("beforeunload", (e) => {
+  if (STATE.repoId && STATE.status !== "ready" && STATE.status !== "idle" && STATE.status !== "error") {
+    e.preventDefault();
+    e.returnValue = "";
+  }
+});
+
+// ----- Initial state ---------------------------------------
+resetToLanding();
+</script>
+</body>
+</html>

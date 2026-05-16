@@ -24,14 +24,19 @@ def _store_path(persist_dir: str, repo_id: str) -> str:
 
 class Retriever:
     def __init__(self, embeddings: np.ndarray, documents: list, metadatas: list):
+        self._documents = documents
+        self._metadatas = metadatas
+        if len(documents) == 0:
+            self._embeddings = np.empty((0, 1), dtype=np.float32)
+            return
         # normalise once so dot product == cosine similarity
         norms = np.linalg.norm(embeddings, axis=1, keepdims=True)
         norms = np.where(norms == 0, 1, norms)
         self._embeddings = embeddings / norms
-        self._documents = documents
-        self._metadatas = metadatas
 
     def search(self, query: str, top_k: int = 5) -> list[dict]:
+        if not self._documents:
+            return []
         model = _get_model()
         qvec = model.encode([query], show_progress_bar=False)[0]
         qvec = qvec / (np.linalg.norm(qvec) or 1)
