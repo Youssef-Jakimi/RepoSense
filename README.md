@@ -15,9 +15,17 @@ Paste a GitHub URL → RepoSense fetches every source file via the GitHub API, s
 
 ## Screenshots
 
-| Risk Score & Sub-scores | Codebase Q&A |
-|---|---|
-| ![Risk Score](docs/risk_score.png) | ![Ask Tab](docs/ask_tab.png) |
+**Landing page**
+
+![Home Page](docs/home_page.png)
+
+**Ingestion in progress**
+
+![Ingestion](docs/ingestion.png)
+
+| Risk Score & Sub-scores | Codebase Q&A | Risk Review Tab |
+|---|---|---|
+| ![Risk Score](docs/risk_score.png) | ![Ask Tab](docs/ask_tab.png) | ![Risk Review](docs/test_tab.png) |
 
 ---
 
