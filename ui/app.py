@@ -9,15 +9,16 @@ import pandas as pd
 import streamlit as st
 
 API_BASE = os.getenv("REPOSENSE_API_BASE", "http://localhost:8000")
-_TIMEOUT = 30.0
+_TIMEOUT = 30.0       # fast ops: ingest trigger, status poll
+_LLM_TIMEOUT = 120.0  # slow ops: /ask, /review (LLM generation)
 
 # ---------------------------------------------------------------------------
 # HTTP helpers
 # ---------------------------------------------------------------------------
 
-def api_post(path: str, payload: dict) -> dict:
+def api_post(path: str, payload: dict, timeout: float = _TIMEOUT) -> dict:
     try:
-        r = httpx.post(f"{API_BASE}{path}", json=payload, timeout=_TIMEOUT)
+        r = httpx.post(f"{API_BASE}{path}", json=payload, timeout=timeout)
         if not r.is_success:
             raise RuntimeError(r.text)
         return r.json()
@@ -25,9 +26,9 @@ def api_post(path: str, payload: dict) -> dict:
         raise RuntimeError(f"API timeout — is the backend running on {API_BASE}?")
 
 
-def api_get(path: str, params: dict | None = None) -> dict | str:
+def api_get(path: str, params: dict | None = None, timeout: float = _TIMEOUT) -> dict | str:
     try:
-        r = httpx.get(f"{API_BASE}{path}", params=params or {}, timeout=_TIMEOUT)
+        r = httpx.get(f"{API_BASE}{path}", params=params or {}, timeout=timeout)
         if not r.is_success:
             raise RuntimeError(r.text)
         if "json" in r.headers.get("content-type", ""):
@@ -139,7 +140,7 @@ if (
     and st.session_state.repo_id
 ):
     try:
-        _fetched = api_get("/review", {"repo_id": st.session_state.repo_id})
+        _fetched = api_get("/review", {"repo_id": st.session_state.repo_id}, timeout=_LLM_TIMEOUT)
         assert isinstance(_fetched, dict)
         st.session_state.report = _fetched
     except RuntimeError as exc:
@@ -204,6 +205,7 @@ if st.session_state.status == "ready" and st.session_state.report is not None:
                         resp = api_post(
                             "/ask",
                             {"repo_id": st.session_state.repo_id, "question": question},
+                            timeout=_LLM_TIMEOUT,
                         )
                         answer = resp["answer"]
                         sources = resp["sources"]
@@ -327,6 +329,7 @@ if st.session_state.status == "ready" and st.session_state.report is not None:
             _md = api_get(
                 "/review",
                 {"repo_id": st.session_state.repo_id, "format": "markdown"},
+                timeout=_LLM_TIMEOUT,
             )
             assert isinstance(_md, str)
             st.download_button(

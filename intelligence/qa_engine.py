@@ -1,5 +1,8 @@
 import os
 
+from langchain_ibm import ChatWatsonx
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+
 _LOCATION_KEYWORDS = {"where", "which file", "find", "locate", "path", "directory"}
 
 _SYSTEM_SUFFIX = (
@@ -19,6 +22,16 @@ def _format_chunk(chunk: dict) -> str:
     return f"[file: {chunk['path']}, lines {chunk['start_line']}-{chunk['end_line']}]\n{chunk['content']}"
 
 
+def _get_model() -> ChatWatsonx:
+    return ChatWatsonx(
+        model_id=os.environ.get("WATSONX_MODEL_ID", "ibm/granite-8b-code-instruct"),
+        url=os.environ.get("WATSONX_URL", "https://us-south.ml.cloud.ibm.com"),
+        project_id=os.environ["WATSONX_PROJECT_ID"],
+        apikey=os.environ["WATSONX_API_KEY"],
+        params={"max_new_tokens": 1024, "temperature": 0.1},
+    )
+
+
 def answer_question(
     question: str,
     retriever,
@@ -35,16 +48,25 @@ def answer_question(
         }
     """
     chunks = retriever.search(question, top_k=top_k)
-
     is_location_question = _detect_location_question(question)
-
     trimmed_history = history[-10:]
 
-    system_prompt = f"{repo_summary['summary_text']}\n\n{_SYSTEM_SUFFIX}"
-
     context_text = "\n\n".join(_format_chunk(c) for c in chunks)
+    system_content = (
+        f"{repo_summary['summary_text']}\n\n"
+        f"Code context:\n{context_text}\n\n"
+        f"{_SYSTEM_SUFFIX}"
+    )
 
-    messages = trimmed_history + [{"role": "user", "content": question}]
+    lc_messages = [SystemMessage(content=system_content)]
+    for msg in trimmed_history:
+        if msg["role"] == "user":
+            lc_messages.append(HumanMessage(content=msg["content"]))
+        else:
+            lc_messages.append(AIMessage(content=msg["content"]))
+    lc_messages.append(HumanMessage(content=question))
+
+    response = _get_model().invoke(lc_messages)
 
     sources = [
         {
@@ -56,21 +78,8 @@ def answer_question(
         for c in chunks
     ]
 
-    try:
-        # TODO: implement Bob API call
-        # Expected request shape (to be confirmed at hackathon kickoff May 15):
-        #   POST {IBM_BOB_BASE_URL}/...
-        #   Headers: {"Authorization": f"Bearer {IBM_BOB_API_KEY}"}
-        #   Body: {"system": str, "messages": list[{role, content}], "context": str}
-        # Expected response: {"answer": str}
-        raise NotImplementedError("IBM Bob API call not yet wired — see TODO above")
-    except NotImplementedError:
-        raise
-    except Exception as exc:
-        raise RuntimeError(f"Bob API call failed: {exc}") from exc
-
-    return {  # noqa: unreachable — placeholder for post-Bob wiring
-        "answer": answer,
+    return {
+        "answer": response.content,
         "sources": sources,
         "is_location_question": is_location_question,
     }

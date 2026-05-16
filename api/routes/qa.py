@@ -66,7 +66,13 @@ def ask(payload: AskRequest) -> AskResponse:
             sources=sources,
             is_location_question=qa_engine._detect_location_question(payload.question),
         )
-    except Exception:
+    except Exception as exc:
+        err = str(exc)
+        if "CannotSetProjectOrSpace" in type(exc).__name__ or "Cannot set Project or Space" in err or "404" in err:
+            raise HTTPException(
+                status_code=503,
+                detail="watsonx project not found — check WATSONX_PROJECT_ID and WATSONX_API_KEY in your .env",
+            )
         logger.exception("Unexpected error answering question for repo %s", payload.repo_id)
         raise HTTPException(
             status_code=500, detail="An error occurred answering the question."

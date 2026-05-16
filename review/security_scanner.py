@@ -75,64 +75,55 @@ def _code_snippet(content: str, line: int, context: int = 2) -> str:
 # IBM Bob enrichment (stubbed — awaiting API details at hackathon kickoff)
 # ---------------------------------------------------------------------------
 
+_ENRICH_LIMIT = 15  # keep JSON output well within 1024-token chat limit
+
+
 def _call_bob_enrichment(findings: list[dict]) -> list[dict]:
-    """
-    TODO: implement Bob API call for security enrichment
-    Expected request shape (to be confirmed at hackathon kickoff May 15):
-      POST {IBM_BOB_BASE_URL}/...
-      Headers: {"Authorization": f"Bearer {IBM_BOB_API_KEY}"}
-      Body: {
-        "task": "security_review",
-        "findings": [{file_path, line, pattern_matched, severity, code_snippet}, ...],
-      }
-    Expected response: {
-      "enriched": [{index: int, exploitability: str, false_positive: bool, refined_description: str}, ...]
-    }
+    import json
 
-    When available, this function will:
-      - Replace finding description with refined_description from Bob
-      - Set bob_enriched=True on enriched findings
-      - Drop findings where false_positive=True
-      - On malformed JSON: log a warning and return regex findings unchanged
-    """
-    raise NotImplementedError(
-        "IBM Bob security enrichment — awaiting API details at hackathon kickoff (May 15)"
+    from langchain_ibm import ChatWatsonx
+    from langchain_core.messages import HumanMessage, SystemMessage
+
+    model = ChatWatsonx(
+        model_id=os.environ.get("WATSONX_MODEL_ID", "meta-llama/llama-3-3-70b-instruct"),
+        url=os.environ.get("WATSONX_URL", "https://us-south.ml.cloud.ibm.com"),
+        project_id=os.environ["WATSONX_PROJECT_ID"],
+        apikey=os.environ["WATSONX_API_KEY"],
+        params={"max_tokens": 1024, "temperature": 0},
     )
 
-    # --- Scaffolded for post-kickoff wiring (unreachable until implemented) ---
-    import json  # noqa: F401 — imported here to keep module-level imports clean
-    import requests  # noqa: F401
+    # Only enrich the highest-priority findings so the response fits in one call
+    batch = findings[:_ENRICH_LIMIT]
 
-    api_key  = os.environ["IBM_BOB_API_KEY"]
-    base_url = os.environ.get("IBM_BOB_BASE_URL", "").rstrip("/")
-
-    payload = {
-        "task": "security_review",
-        "findings": [
-            {
-                "file_path":       f["file_path"],
-                "line":            f["line"],
-                "pattern_matched": f["pattern_matched"],
-                "severity":        f["severity"],
-                "code_snippet":    f.get("_snippet", ""),
-            }
-            for f in findings
-        ],
-    }
-
-    resp = requests.post(
-        f"{base_url}/security_review",
-        headers={"Authorization": f"Bearer {api_key}"},
-        json=payload,
-        timeout=30,
+    findings_text = "\n".join(
+        f'{i}. [{f["severity"].upper()}] {f["file_path"]}:{f["line"]} — {f["description"]}\n'
+        f'   Code: {f.get("_snippet", "")}'
+        for i, f in enumerate(batch)
     )
-    resp.raise_for_status()
+
+    system = (
+        "You are a security code reviewer. Analyze these static-analysis findings. "
+        "For each, decide if it is a false positive and write a refined description. "
+        "Return ONLY a JSON array — no markdown fences, no explanation. "
+        'Each element: {"index": <int>, "false_positive": <bool>, '
+        '"refined_description": <str>, "exploitability": "high"|"medium"|"low"|"none"}'
+    )
+    user = f"Findings:\n\n{findings_text}\n\nReturn the JSON array."
+
+    response = model.invoke([SystemMessage(content=system), HumanMessage(content=user)])
+
+    text = response.content.strip()
+    if text.startswith("```"):
+        text = text.split("```")[1]
+        if text.startswith("json"):
+            text = text[4:]
+        text = text.strip()
 
     try:
-        data = resp.json()
-        enriched_map = {item["index"]: item for item in data.get("enriched", [])}
+        enriched_list = json.loads(text)
+        enriched_map = {item["index"]: item for item in enriched_list}
     except (json.JSONDecodeError, KeyError, TypeError) as exc:
-        logger.warning("Bob returned malformed JSON: %s — skipping enrichment", exc)
+        logger.warning("Watsonx returned malformed JSON: %s — skipping enrichment", exc)
         return findings
 
     result: list[dict] = []
@@ -204,7 +195,7 @@ def scan_security(files: list[dict]) -> dict:
     # -----------------------------------------------------------------------
     # Stage 2 — IBM Bob enrichment (best-effort)
     # -----------------------------------------------------------------------
-    bob_api_key = os.environ.get("IBM_BOB_API_KEY", "").strip()
+    bob_api_key = os.environ.get("WATSONX_API_KEY", "").strip()
     bob_enrichment_available = False
 
     if bob_api_key:

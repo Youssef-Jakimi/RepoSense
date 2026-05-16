@@ -1,8 +1,9 @@
 import os
+import pickle
 import logging
 from typing import Optional
 
-import chromadb
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -17,35 +18,38 @@ def _get_model():
     return _model
 
 
+def _store_path(persist_dir: str, repo_id: str) -> str:
+    return os.path.join(persist_dir, f"{repo_id}.pkl")
+
+
 class Retriever:
-    def __init__(self, collection):
-        self._collection = collection
+    def __init__(self, embeddings: np.ndarray, documents: list, metadatas: list):
+        # normalise once so dot product == cosine similarity
+        norms = np.linalg.norm(embeddings, axis=1, keepdims=True)
+        norms = np.where(norms == 0, 1, norms)
+        self._embeddings = embeddings / norms
+        self._documents = documents
+        self._metadatas = metadatas
 
     def search(self, query: str, top_k: int = 5) -> list[dict]:
         model = _get_model()
-        query_embedding = model.encode([query], show_progress_bar=False)[0].tolist()
-        results = self._collection.query(
-            query_embeddings=[query_embedding],
-            n_results=top_k,
-            include=["documents", "metadatas", "distances"],
-        )
+        qvec = model.encode([query], show_progress_bar=False)[0]
+        qvec = qvec / (np.linalg.norm(qvec) or 1)
+
+        scores = self._embeddings @ qvec
+        top_idx = np.argsort(scores)[::-1][:top_k]
 
         out = []
-        documents = results["documents"][0]
-        metadatas = results["metadatas"][0]
-        distances = results["distances"][0]
-
-        for doc, meta, dist in zip(documents, metadatas, distances):
+        for i in top_idx:
+            meta = self._metadatas[i]
             out.append({
-                "content": doc,
+                "content": self._documents[i],
                 "path": meta.get("path", ""),
                 "language": meta.get("language", ""),
                 "start_line": meta.get("start_line", 0),
                 "end_line": meta.get("end_line", 0),
-                "score": 1.0 - dist,
+                "score": float(scores[i]),
             })
-
-        out.sort(key=lambda x: x["score"], reverse=True)
         return out
 
 
@@ -54,54 +58,37 @@ def embed_chunks(
     chunks: list[dict],
     persist_dir: str = "./chroma_db",
 ) -> Retriever:
-    """Embed all chunks into ChromaDB collection 'repo_<repo_id>' under persist_dir/<repo_id>/."""
     model = _get_model()
-    client = chromadb.PersistentClient(path=os.path.join(persist_dir, repo_id))
+    os.makedirs(persist_dir, exist_ok=True)
 
-    collection_name = f"repo_{repo_id}"
-    existing = [c.name for c in client.list_collections()]
-    if collection_name in existing:
-        client.delete_collection(collection_name)
+    texts = [c["content"] for c in chunks]
+    embeddings = model.encode(texts, batch_size=64, show_progress_bar=False)
 
-    collection = client.create_collection(
-        name=collection_name,
-        metadata={"hnsw:space": "cosine"},
-    )
+    metadatas = [
+        {
+            "path": c["path"],
+            "language": c["language"],
+            "start_line": c["start_line"],
+            "end_line": c["end_line"],
+            "chunk_id": c["id"],
+        }
+        for c in chunks
+    ]
 
-    batch_size = 64
-    for i in range(0, len(chunks), batch_size):
-        batch = chunks[i : i + batch_size]
-        texts = [c["content"] for c in batch]
-        embeddings = model.encode(texts, batch_size=batch_size, show_progress_bar=False)
+    store = {"embeddings": embeddings, "documents": texts, "metadatas": metadatas}
+    with open(_store_path(persist_dir, repo_id), "wb") as f:
+        pickle.dump(store, f)
 
-        collection.add(
-            ids=[c["id"] for c in batch],
-            documents=texts,
-            embeddings=[e.tolist() for e in embeddings],
-            metadatas=[
-                {
-                    "path": c["path"],
-                    "language": c["language"],
-                    "start_line": c["start_line"],
-                    "end_line": c["end_line"],
-                    "chunk_id": c["id"],
-                }
-                for c in batch
-            ],
-        )
-        logger.debug("Embedded batch %d–%d of %d chunks", i, i + len(batch), len(chunks))
-
-    logger.info("Embedded %d chunks into collection '%s'", len(chunks), collection_name)
-    return Retriever(collection)
+    logger.info("Embedded %d chunks for repo '%s'", len(chunks), repo_id)
+    return Retriever(embeddings, texts, metadatas)
 
 
 def get_retriever(repo_id: str, persist_dir: str = "./chroma_db") -> Retriever:
-    """Load an existing collection without re-embedding."""
-    repo_dir = os.path.join(persist_dir, repo_id)
-    if not os.path.isdir(repo_dir):
+    path = _store_path(persist_dir, repo_id)
+    if not os.path.isfile(path):
         raise FileNotFoundError(f"No ingested repo found for repo_id={repo_id}")
 
-    client = chromadb.PersistentClient(path=repo_dir)
-    collection_name = f"repo_{repo_id}"
-    collection = client.get_collection(collection_name)
-    return Retriever(collection)
+    with open(path, "rb") as f:
+        store = pickle.load(f)
+
+    return Retriever(store["embeddings"], store["documents"], store["metadatas"])

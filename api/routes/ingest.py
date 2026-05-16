@@ -1,5 +1,6 @@
 import hashlib
 import logging
+import os
 
 from fastapi import APIRouter, BackgroundTasks
 from pydantic import BaseModel
@@ -61,8 +62,10 @@ def ingest_repo(payload: IngestRequest, background: BackgroundTasks) -> IngestRe
     if state.exists(repo_id) and state.get(repo_id).status == "ready":
         return IngestResponse(repo_id=repo_id, status="ready")
 
+    token = payload.github_token or os.getenv("GITHUB_TOKEN") or None
+
     fresh = RepoState(repo_id=repo_id, repo_url=payload.repo_url, status="ingesting")
     state.put(fresh)
-    background.add_task(_run_pipeline, repo_id, payload.repo_url, payload.github_token)
+    background.add_task(_run_pipeline, repo_id, payload.repo_url, token)
 
     return IngestResponse(repo_id=repo_id, status="ingesting")
