@@ -13,6 +13,14 @@ Paste a GitHub URL → RepoSense fetches every source file via the GitHub API, s
 
 ---
 
+## Screenshots
+
+| Risk Score & Sub-scores | Codebase Q&A |
+|---|---|
+| ![Risk Score](docs/risk_score.png) | ![Ask Tab](docs/ask_tab.png) |
+
+---
+
 ## What It Does
 
 Drop a GitHub repo URL and RepoSense gives you two superpowers:
