@@ -1,4 +1,4 @@
-**User:**
+﻿**User:**
 
 <task>
 ### 1.3 Get watsonx.ai Credentials
@@ -234,7 +234,7 @@ IMPORTANT: When task status changes, remember to call the `update_todo_list` too
  2 | GITHUB_TOKEN=
  3 | 
  4 | # IBM Bob credentials — provided at hackathon kickoff on May 15
- 5 | IBM_BOB_API_KEY=bob_prod_bob-user_dmQ7RpWYRzmLBYne7Ryak3hqJFzw44pLMwNy32v1cCVji6CVHnqi8jtSBRny6pdVrD6v6NksxbtZ6NtMjpeTzSb_234C1yykGzrHh4G5fJQknDK1CUcXSFnFh6SNVaTubbjL
+ 5 | IBM_BOB_API_KEY=<REDACTED>
  6 | IBM_BOB_BASE_URL=https://api.dataplatform.cloud.ibm.com
  7 | 
  8 | WATSONX_API_KEY=       # IBM Cloud → Developer Access → Create API key
@@ -371,7 +371,7 @@ IMPORTANT: When task status changes, remember to call the `update_todo_list` too
  57 | WATSONX_MODEL_ID=ibm/granite-3-8b-instruct
  58 | 
  59 | # IBM Bob (already configured)
- 60 | IBM_BOB_API_KEY=bob_prod_bob-user_dmQ7RpWYRzmLBYne7Ryak3hqJFzw44pLMwNy32v1cCVji6CVHnqi8jtSBRny6pdVrD6v6NksxbtZ6NtMjpeTzSb_234C1yykGzrHh4G5fJQknDK1CUcXSFnFh6SNVaTubbjL
+ 60 | IBM_BOB_API_KEY=<REDACTED>
  61 | IBM_BOB_BASE_URL=https://api.dataplatform.cloud.ibm.com
  62 | 
  63 | # ChromaDB
@@ -532,7 +532,7 @@ Since you're already in the IBM Cloud dashboard, here's exactly where to find wa
 The user has provided feedback on the results. Consider their input to continue the task, and then attempt completion again.
 <feedback>
 (.venv) PS C:\myprojects\RepoSense> python scripts/check_bob.py
-API Key: bob_prod_bob-user_dmQ7Rp...
+API Key: <REDACTED>...
 
 === 1. 405 response details on bob.ibm.com ===
   POST /api/v1/chat/completions            → 405  Allow:—  CT:text/html; charset=utf-8
@@ -629,9 +629,9 @@ I see you've run the Bob connectivity test. The 405 errors are expected based on
 <content lines="1-11">
  1 | 
  2 | # IBM Bob credentials — provided at hackathon kickoff on May 15
- 3 | IBM_BOB_API_KEY=bob_prod_bob-user_dmQ7RpWYRzmLBYne7Ryak3hqJFzw44pLMwNy32v1cCVji6CVHnqi8jtSBRny6pdVrD6v6NksxbtZ6NtMjpeTzSb_234C1yykGzrHh4G5fJQknDK1CUcXSFnFh6SNVaTubbjL
- 4 | WATSONX_API_KEY=SovJYgtEYNFJigeMrEa2NAXcpYu9TlLwxu30nDJWB6Rz       # IBM Cloud → Developer Access → Create API key
- 5 | WATSONX_PROJECT_ID=fe995fdf-95c3-4b12-bf43-e760e440409b    # IBM Cloud → watsonx.ai → Developer Access → Project ID
+ 3 | IBM_BOB_API_KEY=<REDACTED>
+ 4 | WATSONX_API_KEY=<REDACTED>       # IBM Cloud → Developer Access → Create API key
+ 5 | WATSONX_PROJECT_ID=<REDACTED>    # IBM Cloud → watsonx.ai → Developer Access → Project ID
  6 | WATSONX_URL=https://us-south.ml.cloud.ibm.com  # Dallas region, fixed
  7 | WATSONX_MODEL_ID=ibm/granite-3-8b-instruct
  8 | 
@@ -750,8 +750,8 @@ IMPORTANT: When task status changes, remember to call the `update_todo_list` too
 ✅ **watsonx.ai credentials successfully configured!**
 
 Your `.env` file now contains:
-- `WATSONX_API_KEY`: SovJYgtEYNFJigeMrEa2NAXcpYu9TlLwxu30nDJWB6Rz
-- `WATSONX_PROJECT_ID`: fe995fdf-95c3-4b12-bf43-e760e440409b
+- `WATSONX_API_KEY`: <REDACTED>
+- `WATSONX_PROJECT_ID`: <REDACTED>
 - `WATSONX_URL`: https://us-south.ml.cloud.ibm.com
 - `WATSONX_MODEL_ID`: ibm/granite-3-8b-instruct
 
@@ -1111,7 +1111,7 @@ IMPORTANT: When task status changes, remember to call the `update_todo_list` too
 Found 3 results.
 
 # TESTING_GUIDE.md
- 60 | IBM_BOB_API_KEY=bob_prod_bob-user_dmQ7RpWYRzmLBYne7Ryak3hqJFzw44pLMwNy32v1cCVji6CVHnqi8jtSBRny6pdVrD6v6NksxbtZ6NtMjpeTzSb_234C1yykGzrHh4G5fJQknDK1CUcXSFnFh6SNVaTubbjL
+ 60 | IBM_BOB_API_KEY=<REDACTED>
  61 | IBM_BOB_BASE_URL=https://api.dataplatform.cloud.ibm.com
  62 | 
 ----

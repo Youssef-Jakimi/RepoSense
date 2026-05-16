@@ -1,4 +1,4 @@
-**User:**
+﻿**User:**
 
 <task>
 'Lablab-IBM-Bob-hackathon-guide-May-2026.md' (see below for file content) 
@@ -1296,7 +1296,7 @@ You have not created a todo list yet. Create one with `update_todo_list` if your
  2 | GITHUB_TOKEN=
  3 | 
  4 | # IBM Bob credentials — provided at hackathon kickoff on May 15
- 5 | IBM_BOB_API_KEY=bob_prod_bob-user_dmQ7RpWYRzmLBYne7Ryak3hqJFzw44pLMwNy32v1cCVji6CVHnqi8jtSBRny6pdVrD6v6NksxbtZ6NtMjpeTzSb_234C1yykGzrHh4G5fJQknDK1CUcXSFnFh6SNVaTubbjL
+ 5 | IBM_BOB_API_KEY=<REDACTED>
  6 | IBM_BOB_BASE_URL=https://api.dataplatform.cloud.ibm.com
  7 | 
  8 | WATSONX_API_KEY=       # IBM Cloud → Developer Access → Create API key
@@ -3051,7 +3051,7 @@ WATSONX_URL=https://us-south.ml.cloud.ibm.com
 WATSONX_MODEL_ID=ibm/granite-3-8b-instruct
 
 # IBM Bob (already configured)
-IBM_BOB_API_KEY=bob_prod_bob-user_dmQ7RpWYRzmLBYne7Ryak3hqJFzw44pLMwNy32v1cCVji6CVHnqi8jtSBRny6pdVrD6v6NksxbtZ6NtMjpeTzSb_234C1yykGzrHh4G5fJQknDK1CUcXSFnFh6SNVaTubbjL
+IBM_BOB_API_KEY=<REDACTED>
 IBM_BOB_BASE_URL=https://api.dataplatform.cloud.ibm.com
 
 # ChromaDB
