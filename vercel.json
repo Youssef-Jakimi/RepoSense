@@ -16,14 +16,12 @@
       "dest": "api/index.py"
     },
     {
+      "src": "/",
+      "dest": "ui/web/index.html"
+    },
+    {
       "src": "/(.*)",
       "dest": "ui/web/$1"
-    }
-  ],
-  "rewrites": [
-    {
-      "source": "/",
-      "destination": "/ui/web/index.html"
     }
   ]
 }

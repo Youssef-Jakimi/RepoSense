@@ -19,10 +19,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(ingest.router)
-app.include_router(status.router)
-app.include_router(qa.router)
-app.include_router(review.router)
+app.include_router(ingest.router, prefix="/api")
+app.include_router(status.router, prefix="/api")
+app.include_router(qa.router, prefix="/api")
+app.include_router(review.router, prefix="/api")
 
 
 @app.get("/health")
