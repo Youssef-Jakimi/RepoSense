@@ -1,0 +1,21 @@
+# Exclude development and testing files
+bob_sessions/
+demo/
+docs/
+scripts/
+.venv/
+venv/
+__pycache__/
+*.pyc
+.env
+.DS_Store
+chroma_db/
+
+# Keep only essential files for deployment
+!api/
+!ingestion/
+!intelligence/
+!review/
+!ui/
+!requirements-vercel.txt
+!vercel.json

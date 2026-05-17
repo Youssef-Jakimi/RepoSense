@@ -7,7 +7,8 @@ from pydantic import BaseModel
 
 from api import state
 from api.state import RepoState
-from ingestion import github_loader, chunker, embedder
+from ingestion import github_loader, chunker
+from ingestion import embedder_auto as embedder
 from intelligence import context_builder
 from review import risk_analyzer, security_scanner, report_generator
 

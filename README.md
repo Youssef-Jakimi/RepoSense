@@ -64,21 +64,47 @@ Drop a GitHub repo URL and RepoSense gives you two superpowers:
 
 ---
 
-## Quickstart (local)
+## Quickstart
+
+### 🚀 Deploy to Vercel (Recommended)
+
+**Quick 3-step deployment:**
+
+1. **Set environment variables in Vercel:**
+   - `GITHUB_TOKEN` - Your GitHub personal access token
+   - `WATSONX_API_KEY` - IBM watsonx.ai API key
+   - `WATSONX_PROJECT_ID` - IBM watsonx.ai project ID
+
+2. **Push to GitHub:**
+   ```bash
+   git add .
+   git commit -m "Deploy to Vercel"
+   git push origin main
+   ```
+
+3. **Deploy:**
+   - Vercel auto-deploys on push, or
+   - Run: `vercel --prod`
+
+📖 **See [DEPLOYMENT_QUICKSTART.md](DEPLOYMENT_QUICKSTART.md) for detailed instructions**
+
+---
+
+### 💻 Run Locally
 
 1. **Prerequisites**
    - Python 3.10+
    - A GitHub Personal Access Token (only needed for private repos or to raise the rate limit)
-   - IBM Bob API key (provided May 15 at hackathon kickoff — until then the Q&A will return a graceful "Bob not connected" message)
+   - IBM watsonx.ai credentials (API key + project ID)
 
 2. **Install**
    ```bash
    git clone <this-repo>
    cd reposense
    python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
-   pip install -r requirements.txt
+   pip install -r requirements-local.txt  # Use full version with sentence-transformers
    cp .env.example .env
-   # Fill in GITHUB_TOKEN (optional) and IBM_BOB_API_KEY / IBM_BOB_BASE_URL
+   # Fill in GITHUB_TOKEN, WATSONX_API_KEY, and WATSONX_PROJECT_ID
    ```
 
 3. **Verify with smoke scripts**
