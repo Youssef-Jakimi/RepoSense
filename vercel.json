@@ -4,6 +4,10 @@
     {
       "src": "api/index.py",
       "use": "@vercel/python"
+    },
+    {
+      "src": "ui/web/**",
+      "use": "@vercel/static"
     }
   ],
   "routes": [
@@ -13,7 +17,13 @@
     },
     {
       "src": "/(.*)",
-      "dest": "/ui/web/index.html"
+      "dest": "ui/web/$1"
+    }
+  ],
+  "rewrites": [
+    {
+      "source": "/",
+      "destination": "/ui/web/index.html"
     }
   ]
 }
