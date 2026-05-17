@@ -467,7 +467,14 @@ const STATE = {
 
 // ----- HTTP helpers ----------------------------------------
 async function apiFetch(path, { method = "GET", body, timeoutMs = 30000, parseAs = "json", params } = {}) {
-  const url = new URL(API_BASE + path);
+  // Build URL: handle both absolute (http://localhost:8000) and relative (/api) base URLs
+  let url;
+  if (API_BASE.startsWith('http://') || API_BASE.startsWith('https://')) {
+    url = new URL(API_BASE + path);
+  } else {
+    // Relative path - construct from current origin
+    url = new URL(API_BASE + path, window.location.origin);
+  }
   if (params) Object.entries(params).forEach(([k, v]) => v != null && url.searchParams.set(k, v));
 
   const ctl = new AbortController();
