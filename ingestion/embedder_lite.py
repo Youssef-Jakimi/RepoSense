@@ -100,7 +100,7 @@ class Retriever:
 def embed_chunks(
     repo_id: str,
     chunks: list[dict],
-    persist_dir: str = "./chroma_db",
+    persist_dir: str = "/tmp/chroma_db",
 ) -> Retriever:
     os.makedirs(persist_dir, exist_ok=True)
 
@@ -126,7 +126,7 @@ def embed_chunks(
     return Retriever(embeddings, texts, metadatas)
 
 
-def get_retriever(repo_id: str, persist_dir: str = "./chroma_db") -> Retriever:
+def get_retriever(repo_id: str, persist_dir: str = "/tmp/chroma_db") -> Retriever:
     path = _store_path(persist_dir, repo_id)
     if not os.path.isfile(path):
         raise FileNotFoundError(f"No ingested repo found for repo_id={repo_id}")
