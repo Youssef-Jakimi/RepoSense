@@ -447,7 +447,9 @@
 // ============================================================
 //  RepoSense Web UI
 // ============================================================
-const API_BASE = (window.localStorage.getItem("REPOSENSE_API_BASE")) || "http://localhost:8000";
+// Auto-detect API base URL: use /api for production (Vercel), localhost:8000 for local dev
+const API_BASE = (window.localStorage.getItem("REPOSENSE_API_BASE")) ||
+                 (window.location.hostname === "localhost" ? "http://localhost:8000" : "/api");
 const POLL_INTERVAL_MS = 2000;
 const ASK_TIMEOUT_MS = 120000;
 const REVIEW_TIMEOUT_MS = 120000;
